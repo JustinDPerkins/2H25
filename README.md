@@ -203,11 +203,7 @@ kubectl exec -it <pod-name> -n <namespace-here> -- env | grep -E "(API_KEY|REGIO
 aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin <account-id>.dkr.ecr.us-west-2.amazonaws.com
 ```
 
-## 📚 Additional Resources
-
-- **Trend Micro Vision One**: [Documentation](https://docs.trendmicro.com/en-us/documentation/article/trend-vision-one-introduction-part-trend-vision-one)
-- **EKS Best Practices**: [AWS Documentation](https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html)
-- **Kubernetes Commands**: [Cheat Sheet](https://kubernetes.io/docs/reference/kubectl/cheatsheet/)
+---
 
 ## 🎉 Lab Completion
 
@@ -223,17 +219,19 @@ You now have hands-on experience with:
 - AI-powered security protection
 - File scanning and malware detection
 
-## 🚀 Next Steps
-
-Consider exploring:
-- Scaling your application with HPA (Horizontal Pod Autoscaler)
-- Implementing monitoring with Prometheus and Grafana
-- Adding more security layers (network policies, RBAC)
-- Building CI/CD pipelines for automated deployments
-
 ---
+
+## 🚀 Duration
 
 **Lab Duration**: 1-2 hours  
 **Difficulty**: Intermediate  
 **Cloud Provider**: AWS EKS  
 **Security Focus**: AI Guard + File Scanning
+
+---
+
+## 📚 Additional Resources
+
+- **Trend Micro Vision One**: [Documentation](https://docs.trendmicro.com/en-us/documentation/article/trend-vision-one-introduction-part-trend-vision-one)
+- **EKS Best Practices**: [AWS Documentation](https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html)
+- **Kubernetes Commands**: [Cheat Sheet](https://kubernetes.io/docs/reference/kubectl/cheatsheet/)

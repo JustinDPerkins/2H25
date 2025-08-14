@@ -19,16 +19,11 @@ apt-get install -y \
     wget \
     git \
     unzip \
-    jq \
     software-properties-common \
     apt-transport-https \
     ca-certificates \
     gnupg \
-    lsb-release \
-    htop \
-    tree \
-    vim \
-    nano
+    lsb-release
 
 # Install Docker
 echo "🐳 Installing Docker..."
@@ -49,15 +44,25 @@ apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 systemctl start docker
 systemctl enable docker
 
-# Add ubuntu user to docker group
-usermod -a -G docker ubuntu
-
-# Install AWS CLI v2
-echo "☁️ Installing AWS CLI v2..."
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-unzip -q awscliv2.zip
-./aws/install
-rm -rf aws awscliv2.zip
+# Add ssm-user to docker group (only if user exists)
+if id "ssm-user" &>/dev/null; then
+    usermod -a -G docker ssm-user
+else
+    echo "⚠️ ssm-user not found yet, will be added to docker group when user is created"
+    # Create a script to run later when ssm-user exists
+    cat > /usr/local/bin/add-ssm-user-to-docker.sh << 'EOF'
+#!/bin/bash
+# Wait for ssm-user to exist and add to docker group
+while ! id "ssm-user" &>/dev/null; do
+    sleep 5
+done
+usermod -a -G docker ssm-user
+echo "✅ Added ssm-user to docker group"
+EOF
+    chmod +x /usr/local/bin/add-ssm-user-to-docker.sh
+    # Run this script in background
+    nohup /usr/local/bin/add-ssm-user-to-docker.sh > /var/log/add-ssm-user.log 2>&1 &
+fi
 
 # Install kubectl
 echo "⚙️ Installing kubectl..."
@@ -72,57 +77,23 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.
 apt-get update -y
 apt-get install -y helm
 
-# Install kubectx and kubens for easier context switching
-echo "🔄 Installing kubectx and kubens..."
-git clone https://github.com/ahmetb/kubectx /opt/kubectx
-ln -s /opt/kubectx/kubectx /usr/local/bin/kubectx
-ln -s /opt/kubectx/kubens /usr/local/bin/kubens
-
-# Install kubectl plugins
-echo "🔌 Installing kubectl plugins..."
-mkdir -p /home/ubuntu/.kube/plugins
-cd /home/ubuntu/.kube/plugins
-
-# Install krew (kubectl plugin manager)
-curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/krew-linux_amd64.tar.gz"
-tar zxvf krew-linux_amd64.tar.gz
-./krew-linux_amd64 install krew
-echo 'export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"' >> /home/ubuntu/.bashrc
-
-# Install useful kubectl plugins via krew
-export PATH="${KREW_ROOT:-/home/ubuntu/.krew}/bin:$PATH"
-kubectl krew install access-matrix
-kubectl krew install neat
-kubectl krew install tree
-kubectl krew install view-secret
-
-# Install additional useful tools
-echo "🛠️ Installing additional tools..."
-
-# Install yq for YAML processing
-wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq
-chmod +x /usr/bin/yq
-
-# Install stern for log tailing
-wget https://github.com/stern/stern/releases/latest/download/stern_linux_amd64.tar.gz
-tar -xzf stern_linux_amd64.tar.gz
-mv stern /usr/local/bin/
-rm stern_linux_amd64.tar.gz
-
-# Install k9s for terminal UI
-wget https://github.com/derailed/k9s/releases/latest/download/k9s_Linux_amd64.tar.gz
-tar -xzf k9s_Linux_amd64.tar.gz
-mv k9s /usr/local/bin/
-rm k9s_Linux_amd64.tar.gz
-
-# Install eksctl
-echo "☸️ Installing eksctl..."
-curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
-mv /tmp/eksctl /usr/local/bin
-
 # Set up environment and aliases
 echo "🔧 Setting up environment and aliases..."
-cat >> /home/ubuntu/.bashrc << 'EOF'
+
+# Create ssm-user home directory if it doesn't exist
+if [ ! -d "/home/ssm-user" ]; then
+    echo "📁 Creating ssm-user home directory..."
+    mkdir -p /home/ssm-user
+    chown 1000:1000 /home/ssm-user  # Use typical UID/GID for ssm-user
+fi
+
+# Create .bashrc if it doesn't exist
+if [ ! -f "/home/ssm-user/.bashrc" ]; then
+    touch /home/ssm-user/.bashrc
+    chown 1000:1000 /home/ssm-user/.bashrc
+fi
+
+cat >> /home/ssm-user/.bashrc << 'EOF'
 
 # Boring Paper Co TechDay Lab Aliases
 alias k='kubectl'
@@ -135,18 +106,12 @@ alias kds='kubectl describe service'
 alias kdi='kubectl describe ingress'
 alias kl='kubectl logs'
 alias kex='kubectl exec -it'
-alias kctx='kubectx'
-alias kns='kubens'
 
 # Docker aliases
 alias d='docker'
 alias dps='docker ps'
 alias dimg='docker images'
 alias dex='docker exec -it'
-
-# AWS aliases
-alias aws-account='aws sts get-caller-identity --query Account --output text'
-alias aws-region='aws configure get region'
 
 # Quick status check
 alias status='echo "=== PODS ===" && kubectl get pods -A && echo "=== SERVICES ===" && kubectl get svc -A && echo "=== INGRESS ===" && kubectl get ingress -A'
@@ -158,78 +123,43 @@ alias bpc-pods='kubectl get pods -n boring-paper-co'
 
 # Colorize kubectl output
 export KUBECOLOR=1
-
-# Set default namespace
-export KUBECTX_IGNORE_FUSE=1
 EOF
 
 # Set proper ownership
-chown -R ubuntu:ubuntu /home/ubuntu/.kube
-chown -R ubuntu:ubuntu /home/ubuntu/.bashrc
+chown -R 1000:1000 /home/ssm-user/.bashrc
 
 # Create useful directories
 echo "📁 Creating useful directories..."
-mkdir -p /home/ubuntu/2H25
-mkdir -p /home/ubuntu/workspace
-chown -R ubuntu:ubuntu /home/ubuntu/2H25
-chown -R ubuntu:ubuntu /home/ubuntu/workspace
+mkdir -p /home/ssm-user/2H25
+mkdir -p /home/ssm-user/workspace
+chown -R 1000:1000 /home/ssm-user/2H25
+chown -R 1000:1000 /home/ssm-user/workspace
 
-# Download the 2H25 scripts
-echo "📥 Downloading 2H25 scripts..."
-cd /home/ubuntu/2H25
-
-# Create a simple script to clone the repo
-cat > /home/ubuntu/2H25/setup-repo.sh << 'EOF'
-#!/bin/bash
-echo "🚀 Setting up Boring Paper Co repository..."
-if [ ! -d "2H25" ]; then
-    git clone https://github.com/JustinDPerkins/2H25.git
-    cd 2H25/aws/k8s
-    chmod +x *.sh
-    echo "✅ Repository cloned and scripts made executable!"
-    echo "📁 You can now run:"
-    echo "   cd 2H25/aws/k8s"
-    echo "   ./1_build-and-push.sh"
-else
-    echo "✅ Repository already exists!"
-fi
-EOF
-
-chmod +x /home/ubuntu/2H25/setup-repo.sh
-chown ubuntu:ubuntu /home/ubuntu/2H25/setup-repo.sh
+# Clone the 2H25 repo
+echo "📥 Cloning 2H25 repository..."
+cd /home/ssm-user/2H25
+git clone https://github.com/JustinDPerkins/2H25.git
+cd 2H25/aws/k8s
+chmod +x *.sh
 
 # Create a quick start guide
-cat > /home/ubuntu/QUICKSTART.md << 'EOF'
+cat > /home/ssm-user/QUICKSTART.md << 'EOF'
 # 🚀 Boring Paper Co TechDay Lab - Quick Start
 
 ## 🎯 What's Installed
-- ✅ Docker (with ubuntu user in docker group)
-- ✅ AWS CLI v2
-- ✅ kubectl + useful plugins
+- ✅ Docker (with ssm-user in docker group)
+- ✅ kubectl
 - ✅ Helm
-- ✅ eksctl
-- ✅ kubectx/kubens
-- ✅ k9s (terminal UI)
-- ✅ stern (log tailing)
-- ✅ yq (YAML processing)
+- ✅ Git
+- ✅ 2H25 repository cloned
 
 ## 🚀 Quick Commands
 ```bash
 # Check what's installed
 docker --version
-aws --version
 kubectl version --client
 helm version
-
-# Set up your AWS credentials
-aws configure
-
-# Connect to your EKS cluster
-aws eks --region <region> update-kubeconfig --name <cluster-name>
-
-# Set up the 2H25 repo
-cd 2H25
-./setup-repo.sh
+git --version
 
 # Start the lab!
 cd 2H25/aws/k8s
@@ -246,8 +176,8 @@ cd 2H25/aws/k8s
 - `status` = overall cluster status
 
 ## 📁 Directory Structure
-- `/home/ubuntu/2H25/` - Lab files
-- `/home/ubuntu/workspace/` - Your work area
+- `/home/ssm-user/2H25/` - Lab files
+- `/home/ssm-user/workspace/` - Your work area
 
 ## 🆘 Need Help?
 - Check the TechDay.md guide in the repo
@@ -255,7 +185,7 @@ cd 2H25/aws/k8s
 - Check logs with `kubectl logs -f <pod-name> -n <namespace>`
 EOF
 
-chown ubuntu:ubuntu /home/ubuntu/QUICKSTART.md
+chown 1000:1000 /home/ssm-user/QUICKSTART.md
 
 # Final system setup
 echo "🔧 Final system setup..."
@@ -272,9 +202,9 @@ cat > /etc/update-motd.d/99-boring-paper-co << 'EOF'
 #!/bin/bash
 echo ""
 echo "🚀 Welcome to Boring Paper Co TechDay Lab Jumpbox!"
-echo "📚 Check /home/ubuntu/QUICKSTART.md for getting started"
+echo "📚 Check /home/ssm-user/QUICKSTART.md for getting started"
 echo "🔧 All tools are installed and ready to use"
-echo "📁 Your workspace: /home/ubuntu/2H25"
+echo "📁 Your workspace: /home/ssm-user/2H25"
 echo ""
 EOF
 
@@ -290,27 +220,22 @@ echo ""
 echo "🎉 Boring Paper Co TechDay Jumpbox setup complete!"
 echo ""
 echo "✅ What's installed:"
-echo "   🐳 Docker (with ubuntu user access)"
-echo "   ☁️ AWS CLI v2"
-echo "   ⚙️ kubectl + plugins"
+echo "   🐳 Docker (with ssm-user access)"
+echo "   ⚙️ kubectl"
 echo "   🎯 Helm"
-echo "   ☸️ eksctl"
-echo "   🔌 kubectx/kubens"
-echo "   🖥️ k9s (terminal UI)"
-echo "   📝 stern (log tailing)"
-echo "   📄 yq (YAML processing)"
+echo "   📚 Git"
+echo "   📁 2H25 repository cloned"
 echo ""
 echo "📚 Next steps:"
-echo "   1. SSH into this instance as 'ubuntu'"
-echo "   2. Run: aws configure"
-echo "   3. Check: /home/ubuntu/QUICKSTART.md"
-echo "   4. Start the lab!"
+echo "   1. Connect via SSM as 'ssm-user'"
+echo "   2. Check: /home/ssm-user/QUICKSTART.md"
+echo "   3. Start the lab!"
 echo ""
 echo "🔧 Useful commands:"
 echo "   docker --version"
-echo "   aws --version"
 echo "   kubectl version --client"
 echo "   helm version"
+echo "   git --version"
 echo ""
 
 # Reboot to ensure all services are properly started
