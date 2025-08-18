@@ -225,7 +225,7 @@ func scanUploadedFile(filePath string) (string, error) {
 	defer c.Destroy()
 
 	// Scan file
-	tags := []string{"upload"}
+	tags := []string{"bpc-uploads"}
 	result, err := c.ScanFile(filePath, tags)
 	if err != nil {
 		log.Printf("Scan failed: %v", err)

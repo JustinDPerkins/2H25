@@ -41,3 +41,5 @@ tfplan
 **/*.yaml.bak
 *.bak
 **/*.bak
+
+*.md

@@ -78,7 +78,7 @@ else
     echo "   kubectl annotate serviceaccount ebs-csi-controller-sa -n kube-system eks.amazonaws.com/role-arn=<role-arn>"
 fi
 
-# Deploy application resources (same as Azure!)
+# Deploy application resources
 echo "📋 Deploying application resources..."
 
 kubectl apply -f namespace.yaml
