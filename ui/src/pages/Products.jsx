@@ -36,7 +36,7 @@ function Products() {
       price: 4.99,
       image: '/images/paper_products.png',
       containerCommand:
-        'touch /tmp/standard_white_paper.txt && chmod 600 /tmp/standard_white_paper.txt && echo "Inventory: 10000 reams" > /tmp/standard_white_paper.txt && ls -l /tmp/standard_white_paper.txt && cat /tmp/standard_white_paper.txt',
+        'echo "new text" > /tmp/test.txt && chattr +i /tmp/test.txt',
       features: [
         { icon: <ComputerIcon />, label: 'Office Ready' },
         { icon: <ShippingIcon />, label: 'Fast Shipping' }
@@ -52,7 +52,7 @@ function Products() {
       description: 'Ruled lines for professional documentation.',
       price: 6.99,
       image: '/images/paper_1.png',
-      containerCommand: 'whoami',
+      containerCommand: 'echo \'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*\' > /tmp/eicar.com',
       features: [
         { icon: <LayersIcon />, label: 'Ruled Lines' },
         { icon: <RecyclingIcon />, label: 'Sustainable' }
@@ -69,7 +69,7 @@ function Products() {
       price: 5.49,
       image: '/images/paper_products_1.png',
       containerCommand:
-        'echo "#!/bin/bash\necho \\"Recycled Paper Inventory: 5000 reams\\"\necho \\"Sustainability Score: 95%\\"" > /tmp/recycled_paper_inventory.sh && chmod +x /tmp/recycled_paper_inventory.sh && chattr +i /tmp/recycled_paper_inventory.sh && ls -l /tmp/recycled_paper_inventory.sh && lsattr /tmp/recycled_paper_inventory.sh && /tmp/recycled_paper_inventory.sh',
+        'echo "secret content" > .hidden_file.txt && ls -la .hidden_file.txt',
       features: [
         { icon: <RecyclingIcon />, label: '100% Recycled' },
         { icon: <ComputerIcon />, label: 'Printer Friendly' }
