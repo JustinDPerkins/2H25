@@ -21,6 +21,10 @@ fi
 CLUSTER_NAME=$(kubectl config current-context | awk -F'/' '{print $2}')
 echo "🏷️  Using cluster name: $CLUSTER_NAME"
 
+# Get stack name from cluster name (assuming naming convention)
+STACK_NAME=$(echo "$CLUSTER_NAME" | sed 's/boring-paper-cluster-//')
+echo "��️  Using stack name: $STACK_NAME"
+
 # Install NGINX Ingress Controller (same as Azure!)
 echo "📦 Installing NGINX Ingress Controller..."
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/cloud/deploy.yaml
@@ -32,48 +36,45 @@ kubectl wait --namespace ingress-nginx \
   --selector=app.kubernetes.io/component=controller \
   --timeout=300s
 
-# Install EBS CSI Driver if not already installed
-echo "📦 Checking for EBS CSI Driver..."
-if ! aws eks describe-addon --cluster-name "$CLUSTER_NAME" --addon-name aws-ebs-csi-driver --region "$AWS_REGION" > /dev/null 2>&1; then
-    echo "📥 Installing EBS CSI Driver addon..."
-    aws eks create-addon \
-        --cluster-name "$CLUSTER_NAME" \
-        --addon-name aws-ebs-csi-driver \
-        --region "$AWS_REGION" \
-        --resolve-conflicts OVERWRITE
-    
-    echo "⏳ Waiting for EBS CSI Driver to be ready..."
-    aws eks wait addon-active \
-        --cluster-name "$CLUSTER_NAME" \
-        --addon-name aws-ebs-csi-driver \
-        --region "$AWS_REGION"
+# Check EBS CSI Driver status (now managed by CloudFormation)
+echo "📦 Checking EBS CSI Driver status..."
+if kubectl get pods -n kube-system -l app=ebs-csi-controller --no-headers | grep -q Running; then
+    echo "✅ EBS CSI Driver is running"
 else
-    echo "✅ EBS CSI Driver already installed"
+    echo "⏳ Waiting for EBS CSI Driver to be ready..."
+    kubectl wait --namespace kube-system \
+        --for=condition=ready pod \
+        --selector=app=ebs-csi-controller \
+        --timeout=300s
 fi
 
-# Annotate EBS CSI Driver service account with IAM role
-echo "🔧 Annotating EBS CSI Driver service account..."
-# Get the EBS CSI Driver role ARN from Terraform output
-cd ../iac
-EBS_CSI_ROLE_ARN=$(terraform output -raw ebs_csi_driver_role_arn 2>/dev/null || echo "")
-cd ../k8s
+# Get the EBS CSI Driver role ARN from CloudFormation output
+echo "🔧 Getting EBS CSI Driver role ARN from CloudFormation..."
+EBS_CSI_ROLE_ARN=$(aws cloudformation describe-stacks \
+  --stack-name "$STACK_NAME" \
+  --region "$AWS_REGION" \
+  --query 'Stacks[0].Outputs[?OutputKey==`EBSDriverRoleArn`].OutputValue' \
+  --output text 2>/dev/null || echo "")
 
 if [[ -n "$EBS_CSI_ROLE_ARN" ]]; then
     echo "   Using IAM role ARN: $EBS_CSI_ROLE_ARN"
+    
+    # Annotate EBS CSI Driver service account with IAM role
+    echo "�� Annotating EBS CSI Driver service account..."
     kubectl annotate serviceaccount ebs-csi-controller-sa -n kube-system eks.amazonaws.com/role-arn="$EBS_CSI_ROLE_ARN" --overwrite
-    
+
     # Restart EBS CSI controller pods to pick up the new annotation
-    echo "🔄 Restarting EBS CSI controller pods..."
+    echo "�� Restarting EBS CSI controller pods..."
     kubectl delete pods -n kube-system -l app=ebs-csi-controller --ignore-not-found=true
-    
+
     echo "⏳ Waiting for EBS CSI controller pods to be ready..."
     kubectl wait --namespace kube-system \
         --for=condition=ready pod \
         --selector=app=ebs-csi-controller \
         --timeout=300s
 else
-    echo "⚠️  Could not get EBS CSI Driver role ARN from Terraform. Please run:"
-    echo "   cd ../iac && terraform output ebs_csi_driver_role_arn"
+    echo "⚠️  Could not get EBS CSI Driver role ARN from CloudFormation. Please check:"
+    echo "   aws cloudformation describe-stacks --stack-name $STACK_NAME --region $AWS_REGION"
     echo "   Then manually annotate the service account:"
     echo "   kubectl annotate serviceaccount ebs-csi-controller-sa -n kube-system eks.amazonaws.com/role-arn=<role-arn>"
 fi
@@ -99,7 +100,7 @@ echo ""
 echo "📊 Checking deployment status..."
 kubectl get pods -n boring-paper-co
 echo ""
-echo "🌐 Services:"
+echo "�� Services:"
 kubectl get services -n boring-paper-co
 echo ""
 echo "🔗 Ingress:"
@@ -116,4 +117,10 @@ echo "   kubectl apply -f secret.yaml"
 
 echo ""
 echo "📍 To get Load Balancer IP:"
-echo "kubectl get service -n ingress-nginx ingress-nginx-controller'" 
+echo "   kubectl get service -n ingress-nginx ingress-nginx-controller"
+echo ""
+echo "🔍 To check EBS CSI Driver status:"
+echo "   kubectl get pods -n kube-system -l app=ebs-csi-controller"
+echo ""
+echo "💾 To test EBS volumes:"
+echo "   kubectl get pvc -n boring-paper-co"
