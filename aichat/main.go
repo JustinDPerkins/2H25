@@ -174,8 +174,16 @@ func handleChat(c echo.Context, guardCfg *AIGuardConfig) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"response": "Error reading LLM response"})
 	}
 
-	// 4) Return the allowed reply
-	return c.JSON(http.StatusOK, map[string]string{"response": replyBuilder.String()})
+	// 4) Guard the **response** as well
+	response := replyBuilder.String()
+	if blocked, err := checkAIGuard("response", response, guardCfg); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"response": "Error checking policy"})
+	} else if blocked {
+		return c.JSON(http.StatusForbidden, map[string]string{"response": "Blocked: Trend Vision One"})
+	}
+
+	// 5) Return the allowed reply
+	return c.JSON(http.StatusOK, map[string]string{"response": response})
 }
 
 func main() {
