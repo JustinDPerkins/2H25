@@ -9,7 +9,7 @@ echo "🔍 Detecting current AWS context..."
 
 # Get current AWS context
 CURRENT_ACCOUNT=$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "")
-CURRENT_REGION="${AWS_DEFAULT_REGION:-$(aws configure get region 2>/dev/null || echo "us-west-2")}"
+CURRENT_REGION="${AWS_DEFAULT_REGION:-$(aws configure get region 2>/dev/null || echo "us-east-1")}"
 CURRENT_CLUSTER=$(kubectl config current-context 2>/dev/null | awk -F'/' '{print $2}' || echo "")
 
 if [[ -z "$CURRENT_ACCOUNT" ]]; then
@@ -85,7 +85,7 @@ detect_old_values() {
     # If no pattern found, use defaults
     if [[ -z "$old_account" ]]; then
         old_account="975050242527"
-        old_region="us-west-2"
+        old_region="us-east-1"
         echo "⚠️  No existing ECR pattern found, using defaults: $old_account.dkr.ecr.$old_region.amazonaws.com"
     fi
     
@@ -107,14 +107,14 @@ if [[ ! "$old_account" =~ ^[0-9]{12}$ ]]; then
     echo "❌ Error: Invalid account ID detected: $old_account"
     echo "   Using fallback values..."
     old_account="975050242527"
-    old_region="us-west-2"
+    old_region="us-east-1"
 fi
 
 if [[ ! "$old_region" =~ ^[a-z0-9-]+$ ]]; then
     echo "❌ Error: Invalid region detected: $old_region"
     echo "   Using fallback values..."
     old_account="975050242527"
-    old_region="us-west-2"
+    old_region="us-east-1"
 fi
 
 echo "📊 Detected values:"

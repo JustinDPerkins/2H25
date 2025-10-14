@@ -8,7 +8,28 @@ set -e
 echo "🚀 Deploying Boring Paper Co to EKS (Simple Mode)..."
 
 # Set your region here or export AWS_REGION before running
-AWS_REGION="${AWS_REGION:-us-west-2}"
+AWS_REGION="${AWS_REGION:-us-east-1}"
+
+# Prompt for API key
+echo "🔑 Please enter your API key:"
+read -s API_KEY
+if [[ -z "$API_KEY" ]]; then
+    echo "❌ API key is required. Exiting."
+    exit 1
+fi
+
+# Set the fixed region for Trend Micro
+TREND_MICRO_REGION="us-east-1"
+
+# Encode API key and region for Kubernetes secret
+echo "🔐 Encoding API key and region for Kubernetes secret..."
+ENCODED_API_KEY=$(echo -n "$API_KEY" | base64)
+ENCODED_REGION=$(echo -n "$TREND_MICRO_REGION" | base64)
+
+# Update secret.yaml with the encoded values
+echo "📝 Updating secret.yaml with encoded values..."
+sed -i.bak "s/API_KEY: \".*\"/API_KEY: \"$ENCODED_API_KEY\"/" secret.yaml
+sed -i.bak "s/REGION: \".*\"/REGION: \"$ENCODED_REGION\"/" secret.yaml
 
 # Check if kubectl is connected to a cluster
 if ! kubectl cluster-info > /dev/null 2>&1; then

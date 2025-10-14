@@ -10,7 +10,9 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  Stack
+  Stack,
+  Switch,
+  FormControlLabel
 } from '@mui/material';
 import {
   CloudUpload as UploadIcon,
@@ -39,6 +41,7 @@ function Upload() {
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [scanResult, setScanResult] = useState(null);
+  const [scanProtectionEnabled, setScanProtectionEnabled] = useState(true);
 
   const productOptions = [
     { label: 'Paper Stack', src: '/images/paper_products.png' },
@@ -179,6 +182,7 @@ function Upload() {
       const formData = new FormData();
       const filename = 'boring-paper-watermarked.png';
       formData.append('file', blob, filename);
+      formData.append('scanProtection', scanProtectionEnabled.toString());
       const res = await fetch('/api/sdk/upload', { method: 'POST', body: formData });
       if (!res.ok) throw new Error('Upload failed');
       const json = await res.json();
@@ -280,6 +284,29 @@ function Upload() {
                     ))}
                   </Select>
                 </FormControl>
+
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={scanProtectionEnabled}
+                      onChange={(e) => setScanProtectionEnabled(e.target.checked)}
+                      sx={{
+                        '& .MuiSwitch-switchBase.Mui-checked': {
+                          color: '#4caf50',
+                        },
+                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                          backgroundColor: '#4caf50',
+                        },
+                      }}
+                    />
+                  }
+                  label={
+                    <Typography sx={{ color: 'rgba(255,255,255,0.8)' }}>
+                      Security Scan Protection
+                    </Typography>
+                  }
+                  sx={{ mb: DESIGN_TOKENS.spacing.md }}
+                />
 
                 <Stack spacing={DESIGN_TOKENS.spacing.md}>
                   <Stack direction="row" spacing={2} alignItems="center">

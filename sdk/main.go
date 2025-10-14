@@ -144,6 +144,24 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		// Log file details
 		log.Printf("Uploaded file: %s, Size: %d bytes", handler.Filename, handler.Size)
 
+		// Check if scanning is disabled via form field
+		scanProtection := r.FormValue("scanProtection")
+		if scanProtection == "false" {
+			log.Println("File scanning disabled by user request")
+			response := map[string]interface{}{
+				"scan_result_code": -3, // -3 indicates scan was disabled
+				"scan_results": map[string]interface{}{
+					"status": "disabled",
+					"reason": "Scanning disabled by user request",
+					"message": "File uploaded successfully but scanning was disabled by user",
+				},
+			}
+			responseJSON, _ := json.Marshal(response)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(responseJSON))
+			return
+		}
+
 		// Save file
 		filename := filepath.Base(handler.Filename)
 		filePath := filepath.Join(uploadFolder, filename)
@@ -185,6 +203,21 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func scanUploadedFile(filePath string) (string, error) {
+	// Check if scanning is disabled
+	if os.Getenv("DISABLE_SCAN") == "true" {
+		log.Println("File scanning is disabled via DISABLE_SCAN environment variable")
+		response := map[string]interface{}{
+			"scan_result_code": -3, // -3 indicates scan was disabled
+			"scan_results": map[string]interface{}{
+				"status": "disabled",
+				"reason": "Scanning disabled by configuration",
+				"message": "File uploaded successfully but scanning was disabled",
+			},
+		}
+		responseJSON, _ := json.Marshal(response)
+		return string(responseJSON), nil
+	}
+
 	// Get API key and region from environment
 	apiKey := os.Getenv("API_KEY")
 	region := os.Getenv("REGION")
