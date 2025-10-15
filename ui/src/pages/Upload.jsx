@@ -302,7 +302,7 @@ function Upload() {
                   }
                   label={
                     <Typography sx={{ color: 'rgba(255,255,255,0.8)' }}>
-                      Security Scan Protection
+                      AMaaS File Scan Protection
                     </Typography>
                   }
                   sx={{ mb: DESIGN_TOKENS.spacing.md }}
