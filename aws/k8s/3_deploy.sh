@@ -12,24 +12,55 @@ AWS_REGION="${AWS_REGION:-us-east-1}"
 
 # Prompt for API key
 echo "🔑 Please enter your API key:"
-read -s API_KEY
+read API_KEY
 if [[ -z "$API_KEY" ]]; then
     echo "❌ API key is required. Exiting."
     exit 1
 fi
+
+# Show the key for verification
+echo "✅ API key received: ${API_KEY:0:8}...${API_KEY: -4}"
+echo ""
 
 # Set the fixed region for Trend Micro
 TREND_MICRO_REGION="us-east-1"
 
 # Encode API key and region for Kubernetes secret
 echo "🔐 Encoding API key and region for Kubernetes secret..."
-ENCODED_API_KEY=$(echo -n "$API_KEY" | base64)
-ENCODED_REGION=$(echo -n "$TREND_MICRO_REGION" | base64)
+ENCODED_API_KEY=$(echo -n "$API_KEY" | base64 -w 0)
+ENCODED_REGION=$(echo -n "$TREND_MICRO_REGION" | base64 -w 0)
+
+# Verify base64 encoding
+echo "🔍 Verifying base64 encoding..."
+if ! echo "$ENCODED_API_KEY" | base64 -d > /dev/null 2>&1; then
+    echo "❌ Invalid base64 encoding for API_KEY"
+    echo "   API_KEY length: ${#API_KEY}"
+    echo "   Encoded length: ${#ENCODED_API_KEY}"
+    exit 1
+fi
+if ! echo "$ENCODED_REGION" | base64 -d > /dev/null 2>&1; then
+    echo "❌ Invalid base64 encoding for REGION"
+    exit 1
+fi
+echo "✅ Base64 encoding verified"
 
 # Update secret.yaml with the encoded values
 echo "📝 Updating secret.yaml with encoded values..."
-sed -i.bak "s/API_KEY: \".*\"/API_KEY: \"$ENCODED_API_KEY\"/" secret.yaml
-sed -i.bak "s/REGION: \".*\"/REGION: \"$ENCODED_REGION\"/" secret.yaml
+# Use a more robust approach - create a new file with proper base64 values
+cat > secret.yaml << EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: boring-paper-co
+type: Opaque
+data:
+  # Base64 encoded values - replace with your actual encoded API_KEY and REGION
+  # To encode: echo -n "your-api-key/region" | base64
+  # Decrypt API_KEY for flag, then encrypt with your own API_KEY and Region
+  API_KEY: $ENCODED_API_KEY
+  REGION: $ENCODED_REGION
+EOF
 
 # Check if kubectl is connected to a cluster
 if ! kubectl cluster-info > /dev/null 2>&1; then
@@ -145,3 +176,4 @@ echo "   kubectl get pods -n kube-system -l app=ebs-csi-controller"
 echo ""
 echo "💾 To test EBS volumes:"
 echo "   kubectl get pvc -n boring-paper-co"
+ 

@@ -5,7 +5,7 @@ metadata:
   namespace: boring-paper-co
 data:
   ENVIRONMENT: "production"
-  REGION: "us-west-2"
+  REGION: "us-east-1"
   PLATFORM: "aws"
   OLLAMA_HOST: "0.0.0.0"
   OLLAMA_ORIGINS: "*"
