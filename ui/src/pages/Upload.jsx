@@ -139,7 +139,7 @@ function Upload() {
   const handleMouseUp = () => setIsDragging(false);
   const handleMouseLeave = () => setIsDragging(false);
 
-  const handleWatermarkChange = (e) => {
+  const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
@@ -149,35 +149,7 @@ function Upload() {
     
     // Store the original filename (including potential path traversal sequences)
     setOriginalWatermarkFilename(file.name);
-    
-    const fileExtension = file.name.split('.').pop().toLowerCase();
-    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'];
-    
-    if (fileExtension === 'txt') {
-      setWatermarkType('text');
-      setWatermarkSrc(null);
-      
-      // SECURITY ISSUE: Reading file content without validation
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const text = event.target.result;
-        setWatermarkText(text.trim());
-      };
-      reader.readAsText(file);
-    } else if (imageExtensions.includes(fileExtension)) {
-      setWatermarkType('image');
-      setWatermarkText('');
-      // SECURITY ISSUE: Creating object URL without validation
-      const url = URL.createObjectURL(file);
-      setWatermarkSrc(url);
-    } else {
-      // SECURITY ISSUE: Accepting any file type for direct upload
-      setWatermarkType('file');
-      setWatermarkText('');
-      setWatermarkSrc(null);
-      // Store the file object for later upload (including malicious files)
-      setOriginalFile(file);
-    }
+    setOriginalFile(file);
   };
 
   const handleDownload = () => {
@@ -206,24 +178,8 @@ function Upload() {
     try {
       const formData = new FormData();
       
-      if (watermarkType === 'file' && originalFile) {
-        // For non-image files, upload directly without watermarking
-        // SECURITY ISSUE: No filename sanitization - allows path traversal attacks
-        formData.append('file', originalFile, originalWatermarkFilename);
-      } else {
-        // For images and text watermarks, create watermarked canvas
-        const canvas = canvasRef.current;
-        if (!canvas) throw new Error('Canvas not available');
-        
-        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-        // SECURITY ISSUE: No filename sanitization - allows path traversal attacks
-        let filename = 'boring-paper-watermarked.png';
-        if (originalWatermarkFilename) {
-          const baseName = originalWatermarkFilename.split('.')[0];
-          filename = `${baseName}.png`;
-        }
-        formData.append('file', blob, filename);
-      }
+      // SECURITY ISSUE: No filename sanitization - allows path traversal attacks
+      formData.append('file', originalFile, originalWatermarkFilename);
       
       // Route to protected or vulnerable endpoint based on toggle
       const endpoint = scanProtectionEnabled ? '/api/sdk/upload' : '/api/sdk/upload-vulnerable';
@@ -273,10 +229,10 @@ function Upload() {
                   color: 'rgba(255,255,255,0.9)'
                 }}
               >
-                Add Your Watermark
+                File Upload & Security Demo
               </Typography>
               <Typography variant="subtitle1" sx={{ opacity: 0.7, color: 'rgba(255,255,255,0.7)' }}>
-                Customize Boring Paper Co. products with your brand watermark
+                Upload files to test security scanning vs vulnerable endpoints
               </Typography>
             </Box>
 
@@ -292,8 +248,8 @@ function Upload() {
                     mb: DESIGN_TOKENS.spacing.md
                   }}
                 >
-                  <input hidden id="watermark-upload" type="file" onChange={handleWatermarkChange} />
-                  <label htmlFor="watermark-upload">
+                  <input hidden id="file-upload" type="file" onChange={handleFileChange} />
+                  <label htmlFor="file-upload">
                     <Button
                       component="span"
                       variant="contained"
@@ -308,23 +264,6 @@ function Upload() {
                     </Button>
                   </label>
                 </Box>
-
-                <FormControl fullWidth size="small" sx={{ mb: DESIGN_TOKENS.spacing.md }}>
-                  <InputLabel id="product-select-label">Product Mockup</InputLabel>
-                  <Select
-                    labelId="product-select-label"
-                    label="Product Mockup"
-                    value={productSrc}
-                    onChange={(e) => setProductSrc(e.target.value)}
-                    sx={{ color: 'white' }}
-                  >
-                    {productOptions.map((opt) => (
-                      <MenuItem key={opt.src} value={opt.src}>
-                        {opt.label}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
 
                 <FormControlLabel
                   control={
@@ -349,113 +288,79 @@ function Upload() {
                   sx={{ mb: DESIGN_TOKENS.spacing.md }}
                 />
 
-                <Stack spacing={DESIGN_TOKENS.spacing.md}>
-                  <Stack direction="row" spacing={2} alignItems="center">
-                    <ZoomIcon sx={{ color: 'rgba(255,255,255,0.7)' }} />
-                    <Slider
-                      value={scale}
-                      min={0.1}
-                      max={0.9}
-                      step={0.01}
-                      onChange={(_, v) => setScale(v)}
-                      sx={{ color: 'white' }}
-                    />
-                    <Typography sx={{ color: 'rgba(255,255,255,0.7)', minWidth: 48 }}>
-                      {(scale * 100).toFixed(0)}%
-                    </Typography>
-                  </Stack>
-                  <Stack direction="row" spacing={2} alignItems="center">
-                    <OpacityIcon sx={{ color: 'rgba(255,255,255,0.7)' }} />
-                    <Slider
-                      value={opacity}
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      onChange={(_, v) => setOpacity(v)}
-                      sx={{ color: 'white' }}
-                    />
-                    <Typography sx={{ color: 'rgba(255,255,255,0.7)', minWidth: 48 }}>
-                      {(opacity * 100).toFixed(0)}%
-                    </Typography>
-                  </Stack>
-
-                  <Stack direction="row" spacing={2}>
-                    <Tooltip title="Reset">
-                      <Button onClick={resetAll} startIcon={<ResetIcon />} variant="outlined" sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.3)' }}>
-                        Reset
-                      </Button>
-                    </Tooltip>
-                    <Tooltip title="Download Preview">
-                      <Button onClick={handleDownload} startIcon={<DownloadIcon />} variant="contained" sx={{ background: 'rgba(255,255,255,0.15)', color: 'white' }}>
-                        Download
-                      </Button>
-                    </Tooltip>
-                    <Tooltip title={scanProtectionEnabled ? "Submit to Protected Endpoint" : "Submit to Vulnerable Endpoint"}>
-                      <Button onClick={handleSubmit} startIcon={<SendIcon />} disabled={submitting} variant="contained" sx={{ background: scanProtectionEnabled ? 'rgba(0,128,255,0.3)' : 'rgba(255,0,0,0.3)', color: 'white' }}>
-                        {submitting ? 'Submitting…' : (scanProtectionEnabled ? 'Submit (Protected)' : 'Submit (Vulnerable)')}
-                      </Button>
-                    </Tooltip>
-                  </Stack>
+                <Stack direction="row" spacing={2}>
+                  <Tooltip title={scanProtectionEnabled ? "Submit to Protected Endpoint" : "Submit to Vulnerable Endpoint"}>
+                    <Button onClick={handleSubmit} startIcon={<SendIcon />} disabled={submitting || !originalFile} variant="contained" sx={{ background: scanProtectionEnabled ? 'rgba(0,128,255,0.3)' : 'rgba(255,0,0,0.3)', color: 'white' }}>
+                      {submitting ? 'Submitting…' : (scanProtectionEnabled ? 'Submit (Protected)' : 'Submit (Vulnerable)')}
+                    </Button>
+                  </Tooltip>
                 </Stack>
               </Box>
 
               <Box sx={{ flex: 2, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 <Box
                   sx={{
-                    position: 'relative',
                     border: '1px solid rgba(255,255,255,0.15)',
                     borderRadius: DESIGN_TOKENS.borderRadius.md,
                     background: 'rgba(0,0,0,0.2)',
-                    overflow: 'hidden',
+                    p: DESIGN_TOKENS.spacing.lg,
                     flex: 1,
-                    minHeight: 0
+                    minHeight: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
                   }}
                 >
-                  <canvas
-                    ref={canvasRef}
-                    width={1000}
-                    height={650}
-                    style={{ width: '100%', height: '100%', display: 'block', cursor: 'move', aspectRatio: '1000 / 650' }}
-                    onMouseDown={handleMouseDown}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUp}
-                    onMouseLeave={handleMouseLeave}
-                  />
-                  {!watermarkSrc && !watermarkText && watermarkType !== 'file' && (
-                    <Box
-                      sx={{
-                        position: 'absolute',
-                        inset: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'rgba(255,255,255,0.6)'
-                      }}
-                    >
-                      <Typography>Upload an image or text file to watermark, or any file to upload directly</Typography>
-                    </Box>
-                  )}
-                  {watermarkType === 'file' && originalWatermarkFilename && (
-                    <Box
-                      sx={{
-                        position: 'absolute',
-                        inset: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'rgba(255,255,255,0.8)',
-                        background: 'rgba(0,0,0,0.3)'
-                      }}
-                    >
-                      <Typography variant="h6">
-                        File: {originalWatermarkFilename}
+                  {originalFile ? (
+                    <Box sx={{ textAlign: 'center', width: '100%' }}>
+                      {/* Paper mockup preview */}
+                      <Box sx={{ 
+                        background: 'linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%)',
+                        borderRadius: DESIGN_TOKENS.borderRadius.md,
+                        p: DESIGN_TOKENS.spacing.lg,
+                        mb: DESIGN_TOKENS.spacing.md,
+                        border: '2px solid rgba(255,255,255,0.3)',
+                        position: 'relative',
+                        minHeight: 200
+                      }}>
+                        <Typography variant="h6" sx={{ color: '#333', mb: DESIGN_TOKENS.spacing.sm }}>
+                          📄 Boring Paper Co. Document
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#666', mb: DESIGN_TOKENS.spacing.md }}>
+                          Premium Paper Products
+                        </Typography>
+                        
+                        {/* Watermark preview */}
+                        <Box sx={{
+                          position: 'absolute',
+                          bottom: DESIGN_TOKENS.spacing.md,
+                          right: DESIGN_TOKENS.spacing.md,
+                          opacity: 0.3,
+                          color: '#999',
+                          fontSize: '0.8rem',
+                          transform: 'rotate(-15deg)'
+                        }}>
+                          {originalWatermarkFilename}
+                        </Box>
+                      </Box>
+                      
+                      {/* File details */}
+                      <Typography variant="h6" sx={{ color: 'rgba(255,255,255,0.9)', mb: DESIGN_TOKENS.spacing.sm }}>
+                        📁 {originalWatermarkFilename}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+                        Size: {(originalFile.size / 1024).toFixed(1)} KB
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+                        Type: {originalFile.type || 'Unknown'}
                       </Typography>
                     </Box>
+                  ) : (
+                    <Typography sx={{ color: 'rgba(255,255,255,0.6)' }}>
+                      Upload a file to see watermark preview
+                    </Typography>
                   )}
                 </Box>
-                <Typography variant="caption" sx={{ display: 'block', mt: DESIGN_TOKENS.spacing.sm, color: 'rgba(255,255,255,0.6)' }}>
-                  Tip: Click and drag on the preview to position your watermark
-                </Typography>
 
                 {submitError && (
                   <Typography variant="body2" sx={{ mt: DESIGN_TOKENS.spacing.sm, color: '#ff8080' }}>
