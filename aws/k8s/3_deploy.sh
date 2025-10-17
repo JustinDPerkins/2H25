@@ -58,8 +58,8 @@ data:
   # Base64 encoded values - replace with your actual encoded API_KEY and REGION
   # To encode: echo -n "your-api-key/region" | base64
   # Decrypt API_KEY for flag, then encrypt with your own API_KEY and Region
-  API_KEY: $ENCODED_API_KEY
-  REGION: $ENCODED_REGION
+  API_KEY: "$ENCODED_API_KEY"
+  REGION: "$ENCODED_REGION"
 EOF
 
 # Check if kubectl is connected to a cluster

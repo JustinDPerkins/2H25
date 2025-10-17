@@ -225,8 +225,9 @@ function Upload() {
         formData.append('file', blob, filename);
       }
       
-      formData.append('scanProtection', scanProtectionEnabled.toString());
-      const res = await fetch('/api/sdk/upload', { method: 'POST', body: formData });
+      // Route to protected or vulnerable endpoint based on toggle
+      const endpoint = scanProtectionEnabled ? '/api/sdk/upload' : '/api/sdk/upload-vulnerable';
+      const res = await fetch(endpoint, { method: 'POST', body: formData });
       if (!res.ok) throw new Error('Upload failed');
       const json = await res.json();
       setScanResult(json);
@@ -342,7 +343,7 @@ function Upload() {
                   }
                   label={
                     <Typography sx={{ color: 'rgba(255,255,255,0.8)' }}>
-                      AMaaS File Scan Protection
+                      {scanProtectionEnabled ? '🛡️ Protected Upload (Scanned)' : '⚠️ Vulnerable Upload (No Scanning)'}
                     </Typography>
                   }
                   sx={{ mb: DESIGN_TOKENS.spacing.md }}
@@ -389,9 +390,9 @@ function Upload() {
                         Download
                       </Button>
                     </Tooltip>
-                    <Tooltip title="Submit to Server">
-                      <Button onClick={handleSubmit} startIcon={<SendIcon />} disabled={submitting} variant="contained" sx={{ background: 'rgba(0,128,255,0.3)', color: 'white' }}>
-                        {submitting ? 'Submitting…' : 'Submit'}
+                    <Tooltip title={scanProtectionEnabled ? "Submit to Protected Endpoint" : "Submit to Vulnerable Endpoint"}>
+                      <Button onClick={handleSubmit} startIcon={<SendIcon />} disabled={submitting} variant="contained" sx={{ background: scanProtectionEnabled ? 'rgba(0,128,255,0.3)' : 'rgba(255,0,0,0.3)', color: 'white' }}>
+                        {submitting ? 'Submitting…' : (scanProtectionEnabled ? 'Submit (Protected)' : 'Submit (Vulnerable)')}
                       </Button>
                     </Tooltip>
                   </Stack>

@@ -76,7 +76,8 @@ func main() {
 
 	http.HandleFunc("/", rootHandler)
 	http.HandleFunc("/health", healthHandler)
-	http.HandleFunc("/upload", uploadHandler)
+	http.HandleFunc("/upload", uploadHandler)           // Protected upload with scanning
+	http.HandleFunc("/upload-vulnerable", vulnerableUploadHandler) // Vulnerable upload without scanning
 
 	log.Println("Starting server on :5000")
 	log.Fatal(http.ListenAndServe(":5000", nil))
@@ -111,11 +112,11 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		fmt.Fprintln(w, "Upload Page")
+		fmt.Fprintln(w, "Protected Upload Page - Files will be scanned")
 		return
 	case http.MethodPost:
 		// Log request details
-		log.Printf("Received upload request. Content-Type: %s", r.Header.Get("Content-Type"))
+		log.Printf("Received PROTECTED upload request. Content-Type: %s", r.Header.Get("Content-Type"))
 
 		// Parse multipart form
 		r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
@@ -144,24 +145,6 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		// Log file details
 		log.Printf("Uploaded file: %s, Size: %d bytes", handler.Filename, handler.Size)
 
-		// Check if scanning is disabled via form field
-		scanProtection := r.FormValue("scanProtection")
-		if scanProtection == "false" {
-			log.Println("File scanning disabled by user request")
-			response := map[string]interface{}{
-				"scan_result_code": -3, // -3 indicates scan was disabled
-				"scan_results": map[string]interface{}{
-					"status": "disabled",
-					"reason": "Scanning disabled by user request",
-					"message": "File uploaded successfully but scanning was disabled by user",
-				},
-			}
-			responseJSON, _ := json.Marshal(response)
-			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(responseJSON))
-			return
-		}
-
 		// Save file
 		filename := filepath.Base(handler.Filename)
 		filePath := filepath.Join(uploadFolder, filename)
@@ -185,8 +168,8 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 		log.Printf("File saved: %s, Bytes written: %d", filePath, bytesWritten)
 
-		// Scan file
-		scanResult, err := scanUploadedFile(filePath)
+		// Scan file (ALWAYS scan in protected endpoint)
+		scanResult, err := scanUploadedFile(filePath, handler.Size)
 		if err != nil {
 			log.Printf("Scan error: %v", err)
 			http.Error(w, fmt.Sprintf("Scan failed: %v", err), http.StatusInternalServerError)
@@ -202,22 +185,103 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func scanUploadedFile(filePath string) (string, error) {
-	// Check if scanning is disabled
-	if os.Getenv("DISABLE_SCAN") == "true" {
-		log.Println("File scanning is disabled via DISABLE_SCAN environment variable")
+func vulnerableUploadHandler(w http.ResponseWriter, r *http.Request) {
+	// Set CORS headers for multi-cloud support
+	setCORSHeaders(w, r)
+	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, X-Requested-With")
+	w.Header().Set("Access-Control-Expose-Headers", "Content-Length")
+	w.Header().Set("Access-Control-Max-Age", "86400")
+
+	// Handle preflight requests
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		fmt.Fprintln(w, "VULNERABLE Upload Page - Files will NOT be scanned")
+		return
+	case http.MethodPost:
+		// Log request details
+		log.Printf("Received VULNERABLE upload request. Content-Type: %s", r.Header.Get("Content-Type"))
+
+		// SECURITY ISSUE: No file size limits
+		// SECURITY ISSUE: No file type validation
+		// SECURITY ISSUE: No malware scanning
+		
+		// Parse multipart form (no size limit!)
+		if err := r.ParseMultipartForm(100 << 20); err != nil { // 100MB limit
+			log.Printf("Form parse error: %v", err)
+			http.Error(w, fmt.Sprintf("Cannot parse form: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		// Get the file
+		file, handler, err := r.FormFile("file")
+		if err != nil {
+			log.Printf("File retrieval error: %v", err)
+			http.Error(w, fmt.Sprintf("Error retrieving file: %v", err), http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		// SECURITY ISSUE: No filename validation - allows path traversal
+		if handler.Filename == "" {
+			log.Println("No selected file")
+			http.Error(w, "No selected file", http.StatusBadRequest)
+			return
+		}
+
+		// Log file details
+		log.Printf("VULNERABLE upload: %s, Size: %d bytes", handler.Filename, handler.Size)
+
+		// SECURITY ISSUE: No filename sanitization - allows path traversal attacks
+		filename := handler.Filename // Use original filename without sanitization!
+		filePath := filepath.Join(uploadFolder, filename)
+		
+		// SECURITY ISSUE: No directory traversal protection
+		dst, err := os.Create(filePath)
+		if err != nil {
+			log.Printf("File creation error: %v", err)
+			http.Error(w, fmt.Sprintf("Cannot create file: %v", err), http.StatusInternalServerError)
+			return
+		}
+		defer dst.Close()
+		// SECURITY ISSUE: File is NOT deleted after processing - persists on disk!
+
+		// Copy file
+		bytesWritten, err := io.Copy(dst, file)
+		if err != nil {
+			log.Printf("File write error: %v", err)
+			http.Error(w, fmt.Sprintf("Cannot write file: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		log.Printf("VULNERABLE file saved: %s, Bytes written: %d", filePath, bytesWritten)
+
+		// SECURITY ISSUE: NO SCANNING - File is uploaded without any security checks
 		response := map[string]interface{}{
-			"scan_result_code": -3, // -3 indicates scan was disabled
+			"scan_result_code": -4, // -4 indicates vulnerable upload (no scanning)
 			"scan_results": map[string]interface{}{
-				"status": "disabled",
-				"reason": "Scanning disabled by configuration",
-				"message": "File uploaded successfully but scanning was disabled",
+				"status": "vulnerable",
+				"reason": "Vulnerable endpoint - no scanning performed",
+				"message": "File uploaded successfully but NO security scanning was performed",
+				"file_path": filePath,
+				"file_size": bytesWritten,
 			},
 		}
 		responseJSON, _ := json.Marshal(response)
-		return string(responseJSON), nil
-	}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(responseJSON))
 
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func scanUploadedFile(filePath string, fileSize int64) (string, error) {
 	// Get API key and region from environment
 	apiKey := os.Getenv("API_KEY")
 	region := os.Getenv("REGION")
@@ -257,6 +321,9 @@ func scanUploadedFile(filePath string) (string, error) {
 	}
 	defer c.Destroy()
 
+	// Log file details before scanning
+	log.Printf("Scanning file: %s (size: %d bytes)", filePath, fileSize)
+	
 	// Scan file
 	tags := []string{"bpc-uploads"}
 	result, err := c.ScanFile(filePath, tags)
@@ -301,6 +368,16 @@ func scanUploadedFile(filePath string) (string, error) {
 	if val, ok := resultMap["scanResult"].(float64); ok && val == 1 {
 		scanResultCode = 1
 		log.Println("File is malicious")
+	} else if val, ok := resultMap["scanResult"].(float64); ok && val == 0 {
+		log.Println("File is clean")
+	} else {
+		log.Printf("Unexpected scanResult value: %v (type: %T)", resultMap["scanResult"], resultMap["scanResult"])
+	}
+	
+	// Also check foundMalwares array for additional detection
+	if malwares, ok := resultMap["foundMalwares"].([]interface{}); ok && len(malwares) > 0 {
+		scanResultCode = 1
+		log.Printf("File is malicious - found malwares: %v", malwares)
 	}
 
 	// Prepare response similar to Python version
