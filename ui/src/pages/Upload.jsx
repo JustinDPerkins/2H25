@@ -32,7 +32,9 @@ function Upload() {
   const [productSrc, setProductSrc] = useState('/images/paper_products.png');
   const [watermarkSrc, setWatermarkSrc] = useState(null);
   const [watermarkText, setWatermarkText] = useState('');
-  const [watermarkType, setWatermarkType] = useState('image'); // 'image' or 'text'
+  const [watermarkType, setWatermarkType] = useState('image'); // 'image', 'text', or 'file'
+  const [originalWatermarkFilename, setOriginalWatermarkFilename] = useState(null);
+  const [originalFile, setOriginalFile] = useState(null);
   const [opacity, setOpacity] = useState(0.5);
   const [scale, setScale] = useState(0.3);
   const [position, setPosition] = useState({ x: 0.5, y: 0.5 });
@@ -141,23 +143,40 @@ function Upload() {
     const file = e.target.files?.[0];
     if (!file) return;
     
+    // SECURITY ISSUE: No file type validation - accepts any file type
+    // SECURITY ISSUE: No file size limits
+    // SECURITY ISSUE: No malware scanning before processing
+    
+    // Store the original filename (including potential path traversal sequences)
+    setOriginalWatermarkFilename(file.name);
+    
     const fileExtension = file.name.split('.').pop().toLowerCase();
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'];
     
     if (fileExtension === 'txt') {
       setWatermarkType('text');
       setWatermarkSrc(null);
       
+      // SECURITY ISSUE: Reading file content without validation
       const reader = new FileReader();
       reader.onload = (event) => {
         const text = event.target.result;
         setWatermarkText(text.trim());
       };
       reader.readAsText(file);
-    } else {
+    } else if (imageExtensions.includes(fileExtension)) {
       setWatermarkType('image');
       setWatermarkText('');
+      // SECURITY ISSUE: Creating object URL without validation
       const url = URL.createObjectURL(file);
       setWatermarkSrc(url);
+    } else {
+      // SECURITY ISSUE: Accepting any file type for direct upload
+      setWatermarkType('file');
+      setWatermarkText('');
+      setWatermarkSrc(null);
+      // Store the file object for later upload (including malicious files)
+      setOriginalFile(file);
     }
   };
 
@@ -165,7 +184,15 @@ function Upload() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const link = document.createElement('a');
-    link.download = 'boring-paper-watermarked.png';
+    
+    // Use the original watermark filename, but change extension to .png since canvas outputs PNG
+    let filename = 'boring-paper-watermarked.png';
+    if (originalWatermarkFilename) {
+      const baseName = originalWatermarkFilename.split('.')[0];
+      filename = `${baseName}.png`;
+    }
+    
+    link.download = filename;
     link.href = canvas.toDataURL('image/png');
     link.click();
   };
@@ -174,14 +201,30 @@ function Upload() {
     setSubmitError(null);
     setSubmitSuccess(false);
     setScanResult(null);
-    const canvas = canvasRef.current;
-    if (!canvas) return;
     setSubmitting(true);
+    
     try {
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
       const formData = new FormData();
-      const filename = 'boring-paper-watermarked.png';
-      formData.append('file', blob, filename);
+      
+      if (watermarkType === 'file' && originalFile) {
+        // For non-image files, upload directly without watermarking
+        // SECURITY ISSUE: No filename sanitization - allows path traversal attacks
+        formData.append('file', originalFile, originalWatermarkFilename);
+      } else {
+        // For images and text watermarks, create watermarked canvas
+        const canvas = canvasRef.current;
+        if (!canvas) throw new Error('Canvas not available');
+        
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        // SECURITY ISSUE: No filename sanitization - allows path traversal attacks
+        let filename = 'boring-paper-watermarked.png';
+        if (originalWatermarkFilename) {
+          const baseName = originalWatermarkFilename.split('.')[0];
+          filename = `${baseName}.png`;
+        }
+        formData.append('file', blob, filename);
+      }
+      
       formData.append('scanProtection', scanProtectionEnabled.toString());
       const res = await fetch('/api/sdk/upload', { method: 'POST', body: formData });
       if (!res.ok) throw new Error('Upload failed');
@@ -248,7 +291,7 @@ function Upload() {
                     mb: DESIGN_TOKENS.spacing.md
                   }}
                 >
-                  <input hidden id="watermark-upload" type="file" accept="image/*,.txt" onChange={handleWatermarkChange} />
+                  <input hidden id="watermark-upload" type="file" onChange={handleWatermarkChange} />
                   <label htmlFor="watermark-upload">
                     <Button
                       component="span"
@@ -260,12 +303,9 @@ function Upload() {
                         '&:hover': { background: 'rgba(255,255,255,0.2)' }
                       }}
                     >
-                      Upload Watermark
+                      Upload File
                     </Button>
                   </label>
-                  <Typography variant="body2" sx={{ mt: DESIGN_TOKENS.spacing.sm, color: 'rgba(255,255,255,0.6)' }}>
-                    PNG with transparency or .txt files supported
-                  </Typography>
                 </Box>
 
                 <FormControl fullWidth size="small" sx={{ mb: DESIGN_TOKENS.spacing.md }}>
@@ -380,7 +420,7 @@ function Upload() {
                     onMouseUp={handleMouseUp}
                     onMouseLeave={handleMouseLeave}
                   />
-                  {!watermarkSrc && !watermarkText && (
+                  {!watermarkSrc && !watermarkText && watermarkType !== 'file' && (
                     <Box
                       sx={{
                         position: 'absolute',
@@ -391,7 +431,24 @@ function Upload() {
                         color: 'rgba(255,255,255,0.6)'
                       }}
                     >
-                      <Typography>Upload a watermark image or text file to begin</Typography>
+                      <Typography>Upload an image or text file to watermark, or any file to upload directly</Typography>
+                    </Box>
+                  )}
+                  {watermarkType === 'file' && originalWatermarkFilename && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'rgba(255,255,255,0.8)',
+                        background: 'rgba(0,0,0,0.3)'
+                      }}
+                    >
+                      <Typography variant="h6">
+                        File: {originalWatermarkFilename}
+                      </Typography>
                     </Box>
                   )}
                 </Box>
