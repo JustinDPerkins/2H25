@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: aichat
-        image: 975050242527.dkr.ecr.us-east-1.amazonaws.com/boringpaperco/aichat:latest
+        image: 975050242527.dkr.ecr.us-west-2.amazonaws.com/boringpaperco/aichat:latest
         ports:
         - containerPort: 5001
         env:

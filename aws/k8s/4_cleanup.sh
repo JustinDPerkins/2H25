@@ -8,7 +8,7 @@ set -e
 echo "🧹 Cleaning up Boring Paper Co deployment..."
 
 # Set your region here or export AWS_REGION before running
-AWS_REGION="${AWS_REGION:-us-east-1}"
+AWS_REGION="${AWS_REGION:-us-west-2}"
 
 # Get cluster name from kubectl context
 if kubectl cluster-info > /dev/null 2>&1; then

@@ -8,7 +8,7 @@ set -e
 echo "🚀 Deploying Boring Paper Co to EKS (Simple Mode)..."
 
 # Set your region here or export AWS_REGION before running
-AWS_REGION="${AWS_REGION:-us-east-1}"
+AWS_REGION="${AWS_REGION:-us-west-2}"
 
 # Prompt for API key
 echo "🔑 Please enter your API key:"
